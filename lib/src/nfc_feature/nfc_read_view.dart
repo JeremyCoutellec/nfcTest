@@ -23,6 +23,7 @@ class _NfcReadViewState extends State<NfcReadView>
   NFCAvailability _availability = NFCAvailability.not_supported;
   NFCTag? _tag;
   String? _result, _mifareResult;
+  bool startPooling = false;
 
   @override
   void initState() {
@@ -53,6 +54,9 @@ class _NfcReadViewState extends State<NfcReadView>
 
   void readNfc() async {
     try {
+      setState(() {
+        startPooling = true;
+      });
       NFCTag tag = await FlutterNfcKit.poll();
       setState(() {
         _tag = tag;
@@ -65,11 +69,13 @@ class _NfcReadViewState extends State<NfcReadView>
             await FlutterNfcKit.transceive("00A4040009A00000000386980701");
         setState(() {
           _result = '1: $result1\n2: $result2\n';
+          startPooling = false;
         });
       } else if (tag.type == NFCTagType.iso18092) {
         String result1 = await FlutterNfcKit.transceive("060080080100");
         setState(() {
           _result = '1: $result1\n';
+          startPooling = false;
         });
       } else if (tag.ndefAvailable ?? false) {
         var ndefRecords = await FlutterNfcKit.readNDEFRecords();
@@ -79,6 +85,7 @@ class _NfcReadViewState extends State<NfcReadView>
         }
         setState(() {
           _result = ndefString;
+          startPooling = false;
         });
       } else if (tag.type == NFCTagType.webusb) {
         var r = await FlutterNfcKit.transceive("00A4040006D27600012401");
@@ -86,6 +93,7 @@ class _NfcReadViewState extends State<NfcReadView>
       }
     } catch (e) {
       setState(() {
+        startPooling = false;
         _result = 'error: $e';
       });
     }
@@ -103,9 +111,15 @@ class _NfcReadViewState extends State<NfcReadView>
       const SizedBox(height: 10),
       ElevatedButton(
         onPressed: () async {
-          readNfc();
+          if (!startPooling)
+            readNfc();
+          else {
+            setState(() {
+              startPooling = false;
+            });
+          }
         },
-        child: Text('Start polling'),
+        child: Text(startPooling ? 'Stop polling' : 'Start polling'),
       ),
       const SizedBox(height: 10),
       Expanded(

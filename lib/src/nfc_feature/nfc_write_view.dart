@@ -21,6 +21,7 @@ class _NfcWriteViewState extends State<NfcWriteView>
   NFCTag? _tag;
   String? _writeResult;
   List<ndef.NDEFRecord>? _records;
+  bool startWriting = false;
 
   @override
   void initState() {
@@ -31,6 +32,9 @@ class _NfcWriteViewState extends State<NfcWriteView>
   void writeNfc() async {
     if (_records!.length != 0) {
       try {
+        setState(() {
+          startWriting = true;
+        });
         NFCTag tag = await FlutterNfcKit.poll();
         setState(() {
           _tag = tag;
@@ -67,15 +71,6 @@ class _NfcWriteViewState extends State<NfcWriteView>
     return Column(children: [
       const SizedBox(height: 40),
       ElevatedButton(
-        onPressed: () async {
-          writeNfc();
-        },
-        child: Text("Start writing"),
-      ),
-      const SizedBox(height: 10),
-      Text('Result: $_writeResult'),
-      const SizedBox(height: 10),
-      ElevatedButton(
         onPressed: () {
           showDialog(
               context: context,
@@ -106,6 +101,37 @@ class _NfcWriteViewState extends State<NfcWriteView>
         child: Text("Add record"),
       ),
       const SizedBox(height: 10),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Expanded(
+            flex: 1,
+            child: ListView(
+                scrollDirection: Axis.vertical,
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(8),
+                children: _records!
+                    .map((record) =>
+                        SizedBox(height: 35, child: Text(record.toString())))
+                    .toList())),
+      ),
+      const SizedBox(height: 10),
+      ElevatedButton(
+        onPressed: () async {
+          if (!startWriting)
+            writeNfc();
+          else {
+            setState(() {
+              startWriting = false;
+            });
+          }
+        },
+        child: Text(startWriting ? 'Stop writing' : 'Start writing'),
+      ),
+      const SizedBox(height: 10),
+      Expanded(
+        flex: 1,
+        child: Text('Result: $_writeResult'),
+      )
     ]);
   }
 }
