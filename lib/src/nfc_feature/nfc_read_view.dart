@@ -18,6 +18,7 @@ class NfcReadView extends StatefulWidget {
 
 class _NfcReadViewState extends State<NfcReadView>
     with AutomaticKeepAliveClientMixin {
+  @override
   bool wantKeepAlive = true;
   String _platformVersion = '';
   NFCAvailability _availability = NFCAvailability.not_supported;
@@ -37,7 +38,7 @@ class _NfcReadViewState extends State<NfcReadView>
     while (true) {
       await readNfc();
       // Delay between polls (adjust as needed)
-      await Future.delayed(Duration(seconds: 1));
+      await Future.delayed(const Duration(seconds: 1));
     }
   }
 
