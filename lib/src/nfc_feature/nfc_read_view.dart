@@ -23,7 +23,6 @@ class _NfcReadViewState extends State<NfcReadView>
   NFCAvailability _availability = NFCAvailability.not_supported;
   NFCTag? _tag;
   String? _result, _mifareResult;
-  bool startPooling = false;
 
   @override
   void initState() {
@@ -31,6 +30,15 @@ class _NfcReadViewState extends State<NfcReadView>
     _platformVersion =
         '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
     initPlatformState();
+    startPolling();
+  }
+
+  void startPolling() async {
+    while (true) {
+      await readNfc();
+      // Delay between polls (adjust as needed)
+      await Future.delayed(Duration(seconds: 1));
+    }
   }
 
   Future<void> initPlatformState() async {
@@ -52,16 +60,13 @@ class _NfcReadViewState extends State<NfcReadView>
     });
   }
 
-  void readNfc() async {
+  Future<void> readNfc() async {
+    Completer<void> completer = Completer<void>();
     try {
-      setState(() {
-        startPooling = true;
-      });
       NFCTag tag = await FlutterNfcKit.poll();
       setState(() {
         _tag = tag;
       });
-      await FlutterNfcKit.setIosAlertMessage("Working on it...");
       _mifareResult = null;
       if (tag.standard == "ISO 14443-4 (Type B)") {
         String result1 = await FlutterNfcKit.transceive("00B0950000");
@@ -69,13 +74,11 @@ class _NfcReadViewState extends State<NfcReadView>
             await FlutterNfcKit.transceive("00A4040009A00000000386980701");
         setState(() {
           _result = '1: $result1\n2: $result2\n';
-          startPooling = false;
         });
       } else if (tag.type == NFCTagType.iso18092) {
         String result1 = await FlutterNfcKit.transceive("060080080100");
         setState(() {
           _result = '1: $result1\n';
-          startPooling = false;
         });
       } else if (tag.ndefAvailable ?? false) {
         var ndefRecords = await FlutterNfcKit.readNDEFRecords();
@@ -85,22 +88,20 @@ class _NfcReadViewState extends State<NfcReadView>
         }
         setState(() {
           _result = ndefString;
-          startPooling = false;
         });
       } else if (tag.type == NFCTagType.webusb) {
         var r = await FlutterNfcKit.transceive("00A4040006D27600012401");
         print(r);
       }
+      completer.complete();
     } catch (e) {
       setState(() {
-        startPooling = false;
         _result = 'error: $e';
       });
+      completer.completeError(e);
     }
 
-    // Pretend that we are working
-    sleep(new Duration(seconds: 1));
-    await FlutterNfcKit.finish(iosAlertMessage: "Finished!");
+    return completer.future;
   }
 
   @override
@@ -108,19 +109,6 @@ class _NfcReadViewState extends State<NfcReadView>
     return Column(children: [
       const SizedBox(height: 20),
       Text('Running on: $_platformVersion\nNFC: $_availability'),
-      const SizedBox(height: 10),
-      ElevatedButton(
-        onPressed: () async {
-          if (!startPooling)
-            readNfc();
-          else {
-            setState(() {
-              startPooling = false;
-            });
-          }
-        },
-        child: Text(startPooling ? 'Stop polling' : 'Start polling'),
-      ),
       const SizedBox(height: 10),
       Expanded(
         flex: 1,
@@ -189,7 +177,7 @@ class _NfcReadViewState extends State<NfcReadView>
                           height: 35,
                           child: Text('Block Message: ${_mifareResult}'))
                     ]
-                  : <Widget>[const Text('No tag polled yet.')]),
+                  : <Widget>[const Text('Please scan your tag.')]),
         ),
       ),
       const SizedBox(height: 10),
