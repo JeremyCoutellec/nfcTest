@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:ndef/ndef.dart' as ndef;
 
-import './nfc_text_record.dart';
-
 class NfcWriteView extends StatefulWidget {
   static const routeName = '/nfc_write';
 
@@ -17,52 +15,58 @@ class NfcWriteView extends StatefulWidget {
 
 class _NfcWriteViewState extends State<NfcWriteView>
     with AutomaticKeepAliveClientMixin {
+  @override
   bool wantKeepAlive = true;
-  NFCTag? _tag;
   String? _writeResult;
+  NFCTag? _tag;
   List<ndef.NDEFRecord>? _records;
-  bool startWriting = false;
+  late List<TextEditingController> _textController;
 
   @override
   void initState() {
     super.initState();
     _records = [];
+    _textController = [
+      TextEditingController.fromValue(const TextEditingValue(text: ''))
+    ];
+    _records!.add(ndef.TextRecord(text: ''));
+    startPolling();
+  }
+
+  void startPolling() async {
+    while (true) {
+      NFCTag tag = await FlutterNfcKit.poll();
+      setState(() {
+        _tag = tag;
+      });
+      // Delay between polls (adjust as needed)
+      await Future.delayed(const Duration(seconds: 1));
+    }
   }
 
   void writeNfc() async {
-    if (_records!.length != 0) {
+    if (_records!.isNotEmpty && _tag != null) {
       try {
-        setState(() {
-          startWriting = true;
-        });
-        NFCTag tag = await FlutterNfcKit.poll();
-        setState(() {
-          _tag = tag;
-        });
-        if (tag.type == NFCTagType.mifare_ultralight ||
-            tag.type == NFCTagType.mifare_classic ||
-            tag.type == NFCTagType.iso15693) {
+        if (_tag!.type == NFCTagType.mifare_ultralight ||
+            _tag!.type == NFCTagType.mifare_classic ||
+            _tag!.type == NFCTagType.iso15693) {
           await FlutterNfcKit.writeNDEFRecords(_records!);
           setState(() {
-            _writeResult = 'OK';
+            _writeResult = 'Records sended';
+            _records = [];
           });
         } else {
           setState(() {
-            _writeResult = 'error: NDEF not supported: ${tag.type}';
+            _writeResult = 'error: NDEF not supported: ${_tag!.type}';
           });
         }
-      } catch (e, stacktrace) {
+      } catch (e) {
         setState(() {
           _writeResult = 'error: $e';
         });
-        print(stacktrace);
       } finally {
         await FlutterNfcKit.finish();
       }
-    } else {
-      setState(() {
-        _writeResult = 'error: No record';
-      });
     }
   }
 
@@ -70,67 +74,69 @@ class _NfcWriteViewState extends State<NfcWriteView>
   Widget build(BuildContext context) {
     return Column(children: [
       const SizedBox(height: 40),
-      ElevatedButton(
-        onPressed: () {
-          showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return SimpleDialog(
-                    title: Text("Record Type"),
-                    children: <Widget>[
-                      SimpleDialogOption(
-                        child: Text("Text Record"),
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          final result = await Navigator.push(context,
-                              MaterialPageRoute(builder: (context) {
-                            return NDEFTextRecordSetting();
-                          }));
-                          if (result != null) {
-                            if (result is ndef.TextRecord) {
-                              setState(() {
-                                _records!.add(result);
-                              });
-                            }
-                          }
-                        },
-                      ),
-                    ]);
-              });
-        },
-        child: Text("Add record"),
-      ),
-      const SizedBox(height: 10),
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Expanded(
-            flex: 1,
-            child: ListView(
-                scrollDirection: Axis.vertical,
-                shrinkWrap: true,
-                padding: const EdgeInsets.all(8),
-                children: _records!
-                    .map((record) =>
-                        SizedBox(height: 35, child: Text(record.toString())))
-                    .toList())),
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  for (int i = 0; i < _records!.length; i++)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            decoration:
+                                const InputDecoration(labelText: 'text'),
+                            controller: _textController[i],
+                          ),
+                        ),
+                        if (i == _records!.length - 1)
+                          ElevatedButton(
+                            child: const Text('+'),
+                            onPressed: () {
+                              setState(() {
+                                _textController.add(TextEditingController());
+                                _records!.add(ndef.TextRecord(
+                                    text: _textController[i].text));
+                              });
+                            },
+                          )
+                        else
+                          ElevatedButton(
+                            child: const Text('-'),
+                            onPressed: () {
+                              setState(() {
+                                _textController.removeAt(i);
+                                _records!.removeAt(i);
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       const SizedBox(height: 10),
       ElevatedButton(
-        onPressed: () async {
-          if (!startWriting)
-            writeNfc();
-          else {
-            setState(() {
-              startWriting = false;
-            });
-          }
-        },
-        child: Text(startWriting ? 'Stop writing' : 'Start writing'),
+        onPressed: (_tag != null)
+            ? () async {
+                writeNfc();
+              }
+            : null,
+        child: const Text('Send'),
       ),
       const SizedBox(height: 10),
       Expanded(
         flex: 1,
-        child: Text('Result: $_writeResult'),
+        child: Text(_writeResult != null
+            ? 'Result: $_writeResult'
+            : _tag == null
+                ? 'Please scan your tag.'
+                : 'Now you can send'),
       )
     ]);
   }
