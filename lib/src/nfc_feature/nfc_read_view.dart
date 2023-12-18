@@ -153,63 +153,87 @@ class _NfcReadViewState extends State<NfcReadView>
                   children: _tag != null
                       ? <Widget>[
                           _tile(title: 'ID: ', content: _tag!.id),
+                          const Divider(),
                           _tile(title: 'Standard: ', content: _tag!.standard),
+                          const Divider(),
                           _tile(title: 'Type: ', content: _tag!.type),
+                          const Divider(),
                           _tile(title: 'ATQA: ', content: _tag!.atqa),
+                          const Divider(),
                           _tile(title: 'SAK: ', content: _tag!.sak),
+                          const Divider(),
                           _tile(
                               title: 'Historical Bytes: ',
                               content: _tag!.historicalBytes),
+                          const Divider(),
                           _tile(
                               title: 'Protocol Info: ',
                               content: _tag!.protocolInfo),
+                          const Divider(),
                           _tile(
                               title: 'Application Data: ',
                               content: _tag!.applicationData),
+                          const Divider(),
                           _tile(
                               title: 'Higher Layer Response: ',
                               content: _tag!.hiLayerResponse),
+                          const Divider(),
                           _tile(
                               title: 'Manufacturer: ',
                               content: _tag!.manufacturer),
+                          const Divider(),
                           _tile(
                               title: 'System Code: ',
                               content: _tag!.systemCode),
+                          const Divider(),
                           _tile(title: 'DSF ID: ', content: _tag!.dsfId),
+                          const Divider(),
                           _tile(
                               title: 'NDEF Available: ',
                               content: _tag!.ndefAvailable),
+                          const Divider(),
                           _tile(title: 'NDEF Type: ', content: _tag!.ndefType),
+                          const Divider(),
                           _tile(
                               title: 'NDEF Writable: ',
                               content: _tag!.ndefWritable),
+                          const Divider(),
                           _tile(
                               title: 'NDEF Can Make Read Only: ',
                               content: _tag!.ndefCanMakeReadOnly),
+                          const Divider(),
                           _tile(
                               title: 'NDEF Capacity: ',
                               content: _tag!.ndefCapacity),
+                          const Divider(),
                           _tile(
                               title: 'Mifare Info: ',
                               content: _tag!.mifareInfo),
+                          const Divider(),
                           _tile(title: 'Transceive Result: ', content: _result),
+                          const Divider(),
                           _tile(title: 'Bloc Message: ', content: _mifareResult)
                         ]
-                      : <Widget>[const Text('Please scan your tag.')])),
+                      : <Widget>[
+                          _tile(title: '', content: 'Please scan your tag.')
+                        ])),
         ),
       ),
       const SizedBox(height: 10),
     ]);
   }
 
-  ListTile _tile({required String title, required dynamic content}) {
-    return ListTile(
-      title: Text(title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 15,
-          )),
-      subtitle: Center(child: Text(content.toString())),
-    );
+  Card _tile({required String title, required dynamic content}) {
+    return Card(
+        elevation: 10,
+        color: Colors.teal.shade900,
+        child: ListTile(
+          title: Text(title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 15,
+              )),
+          subtitle: Center(child: Text(content.toString())),
+        ));
   }
 }
