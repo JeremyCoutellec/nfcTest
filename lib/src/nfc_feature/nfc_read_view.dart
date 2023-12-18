@@ -31,6 +31,24 @@ class _NfcReadViewState extends State<NfcReadView>
     _platformVersion =
         '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
     initPlatformState();
+    startPolling();
+  }
+
+  void startPolling() async {
+    while (true) {
+      try {
+        NFCTag tag = await FlutterNfcKit.poll();
+        setState(() {
+          _tag = tag;
+        });
+        // Delay between polls (adjust as needed)
+        await Future.delayed(const Duration(seconds: 1));
+      } catch (e) {
+        setState(() {
+          _tag = null;
+        });
+      }
+    }
   }
 
   Future<void> initPlatformState() async {

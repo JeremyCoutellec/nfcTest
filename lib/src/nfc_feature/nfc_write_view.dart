@@ -19,53 +19,65 @@ class _NfcWriteViewState extends State<NfcWriteView>
   bool wantKeepAlive = true;
   String? _writeResult;
   NFCTag? _tag;
-  List<ndef.NDEFRecord>? _records;
   late List<TextEditingController> _textController;
 
   @override
   void initState() {
     super.initState();
-    _records = [];
     _textController = [
       TextEditingController.fromValue(const TextEditingValue(text: ''))
     ];
-    _records!.add(ndef.TextRecord(text: ''));
     startPolling();
   }
 
   void startPolling() async {
     while (true) {
-      NFCTag tag = await FlutterNfcKit.poll();
-      setState(() {
-        _tag = tag;
-      });
-      // Delay between polls (adjust as needed)
-      await Future.delayed(const Duration(seconds: 1));
+      try {
+        NFCTag tag = await FlutterNfcKit.poll();
+        setState(() {
+          _tag = tag;
+        });
+        // Delay between polls (adjust as needed)
+        await Future.delayed(const Duration(seconds: 1));
+      } catch (e) {
+        setState(() {
+          _tag = null;
+        });
+      }
     }
   }
 
   void writeNfc() async {
-    if (_records!.isNotEmpty && _tag != null) {
+    if (_tag != null) {
       try {
         if (_tag!.type == NFCTagType.mifare_ultralight ||
             _tag!.type == NFCTagType.mifare_classic ||
             _tag!.type == NFCTagType.iso15693) {
-          await FlutterNfcKit.writeNDEFRecords(_records!);
+          List<ndef.NDEFRecord> records = [];
+          _textController.forEach((element) {
+            records.add(ndef.TextRecord(
+                text: element.text,
+                encoding: ndef.TextEncoding.values[0],
+                language: ('en')));
+          });
+
+          await FlutterNfcKit.writeNDEFRecords(records);
           setState(() {
             _writeResult = 'Records sended';
-            _records = [];
+            _textController = [
+              TextEditingController.fromValue(const TextEditingValue(text: ''))
+            ];
           });
         } else {
           setState(() {
             _writeResult = 'error: NDEF not supported: ${_tag!.type}';
           });
         }
-      } catch (e) {
+      } catch (e, stacktrace) {
         setState(() {
           _writeResult = 'error: $e';
         });
-      } finally {
-        await FlutterNfcKit.finish();
+        print(stacktrace);
       }
     }
   }
@@ -81,7 +93,7 @@ class _NfcWriteViewState extends State<NfcWriteView>
             Expanded(
               child: Column(
                 children: [
-                  for (int i = 0; i < _records!.length; i++)
+                  for (int i = 0; i < _textController.length; i++)
                     Row(
                       children: [
                         Expanded(
@@ -91,14 +103,12 @@ class _NfcWriteViewState extends State<NfcWriteView>
                             controller: _textController[i],
                           ),
                         ),
-                        if (i == _records!.length - 1)
+                        if (i == _textController.length - 1)
                           ElevatedButton(
                             child: const Text('+'),
                             onPressed: () {
                               setState(() {
                                 _textController.add(TextEditingController());
-                                _records!.add(ndef.TextRecord(
-                                    text: _textController[i].text));
                               });
                             },
                           )
@@ -108,7 +118,6 @@ class _NfcWriteViewState extends State<NfcWriteView>
                             onPressed: () {
                               setState(() {
                                 _textController.removeAt(i);
-                                _records!.removeAt(i);
                               });
                             },
                           ),
