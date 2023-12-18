@@ -13,10 +13,7 @@ class NfcWriteView extends StatefulWidget {
   _NfcWriteViewState createState() => _NfcWriteViewState();
 }
 
-class _NfcWriteViewState extends State<NfcWriteView>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool wantKeepAlive = true;
+class _NfcWriteViewState extends State<NfcWriteView> {
   String? _writeResult;
   NFCTag? _tag;
   late List<TextEditingController> _textController;
