@@ -113,10 +113,15 @@ class _NfcReadViewState extends State<NfcReadView>
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      const SizedBox(height: 20),
+      const SizedBox(height: 10),
       Center(child: Text('Running on: $_platformVersion')),
-      Center(child: Text('NFC: $_availability')),
-      const SizedBox(height: 20),
+      Center(
+          child: _availability.name == 'available'
+              ? const Text('NFC: actif')
+              : const Text('NFC: inactif')),
+      const SizedBox(height: 10),
+      const Divider(),
+      const SizedBox(height: 10),
       Expanded(
         flex: 1,
         child: Padding(
@@ -195,7 +200,7 @@ class _NfcReadViewState extends State<NfcReadView>
                         ])),
         ),
       ),
-      const SizedBox(height: 10),
+      const SizedBox(height: 25),
     ]);
   }
 
