@@ -18,12 +18,12 @@ class NfcReadView extends StatefulWidget {
 
 class _NfcReadViewState extends State<NfcReadView>
     with AutomaticKeepAliveClientMixin {
-  @override
   bool wantKeepAlive = true;
   String _platformVersion = '';
   NFCAvailability _availability = NFCAvailability.not_supported;
   NFCTag? _tag;
   String? _result, _mifareResult;
+  bool startPooling = false;
 
   @override
   void initState() {
@@ -31,15 +31,6 @@ class _NfcReadViewState extends State<NfcReadView>
     _platformVersion =
         '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
     initPlatformState();
-    startPolling();
-  }
-
-  void startPolling() async {
-    while (true) {
-      await readNfc();
-      // Delay between polls (adjust as needed)
-      await Future.delayed(const Duration(seconds: 1));
-    }
   }
 
   Future<void> initPlatformState() async {
@@ -61,13 +52,16 @@ class _NfcReadViewState extends State<NfcReadView>
     });
   }
 
-  Future<void> readNfc() async {
-    Completer<void> completer = Completer<void>();
+  void readNfc() async {
     try {
+      setState(() {
+        startPooling = true;
+      });
       NFCTag tag = await FlutterNfcKit.poll();
       setState(() {
         _tag = tag;
       });
+      await FlutterNfcKit.setIosAlertMessage("Working on it...");
       _mifareResult = null;
       if (tag.standard == "ISO 14443-4 (Type B)") {
         String result1 = await FlutterNfcKit.transceive("00B0950000");
@@ -75,11 +69,13 @@ class _NfcReadViewState extends State<NfcReadView>
             await FlutterNfcKit.transceive("00A4040009A00000000386980701");
         setState(() {
           _result = '1: $result1\n2: $result2\n';
+          startPooling = false;
         });
       } else if (tag.type == NFCTagType.iso18092) {
         String result1 = await FlutterNfcKit.transceive("060080080100");
         setState(() {
           _result = '1: $result1\n';
+          startPooling = false;
         });
       } else if (tag.ndefAvailable ?? false) {
         var ndefRecords = await FlutterNfcKit.readNDEFRecords();
@@ -89,99 +85,113 @@ class _NfcReadViewState extends State<NfcReadView>
         }
         setState(() {
           _result = ndefString;
+          startPooling = false;
         });
       } else if (tag.type == NFCTagType.webusb) {
         var r = await FlutterNfcKit.transceive("00A4040006D27600012401");
         print(r);
       }
-      completer.complete();
     } catch (e) {
       setState(() {
+        startPooling = false;
         _result = 'error: $e';
       });
-      completer.completeError(e);
     }
 
-    return completer.future;
+    // Pretend that we are working
+    sleep(new Duration(seconds: 1));
+    await FlutterNfcKit.finish(iosAlertMessage: "Finished!");
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(children: [
       const SizedBox(height: 20),
-      Text('Running on: $_platformVersion\nNFC: $_availability'),
+      Center(child: Text('Running on: $_platformVersion')),
+      Center(child: Text('NFC: $_availability')),
+      const SizedBox(height: 10),
+      ElevatedButton(
+        onPressed: () async {
+          if (!startPooling) {
+            readNfc();
+          } else {
+            setState(() {
+              startPooling = false;
+            });
+          }
+        },
+        child: Text(startPooling ? 'Stop polling' : 'Start polling'),
+      ),
       const SizedBox(height: 10),
       Expanded(
         flex: 1,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: ListView(
-              scrollDirection: Axis.vertical,
-              shrinkWrap: true,
-              padding: const EdgeInsets.all(8),
-              children: _tag != null
-                  ? <Widget>[
-                      SizedBox(height: 35, child: Text('ID: ${_tag!.id}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text('Standard: ${_tag!.standard}')),
-                      SizedBox(height: 35, child: Text('Type: ${_tag!.type}')),
-                      SizedBox(height: 35, child: Text('ATQA: ${_tag!.atqa}')),
-                      SizedBox(height: 35, child: Text('SAK: ${_tag!.sak}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text(
-                              'Historical Bytes: ${_tag!.historicalBytes}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text('Protocol Info: ${_tag!.protocolInfo}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text(
-                              'Application Data: ${_tag!.applicationData}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text(
-                              'Higher Layer Response: ${_tag!.hiLayerResponse}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text('Manufacturer: ${_tag!.manufacturer}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text('System Code: ${_tag!.systemCode}')),
-                      SizedBox(
-                          height: 35, child: Text('DSF ID: ${_tag!.dsfId}')),
-                      SizedBox(
-                          height: 35,
-                          child:
-                              Text('NDEF Available: ${_tag!.ndefAvailable}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text('NDEF Type: ${_tag!.ndefType}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text('NDEF Writable: ${_tag!.ndefWritable}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text(
-                              'NDEF Can Make Read Only: ${_tag!.ndefCanMakeReadOnly}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text('NDEF Capacity: ${_tag!.ndefCapacity}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text('Mifare Info: ${_tag!.mifareInfo}')),
-                      Expanded(
-                          flex: 1,
-                          child: Text('Transceive Result: ${_result}')),
-                      SizedBox(
-                          height: 35,
-                          child: Text('Block Message: ${_mifareResult}'))
-                    ]
-                  : <Widget>[const Text('Please scan your tag.')]),
+          child: Center(
+              child: ListView(
+                  scrollDirection: Axis.vertical,
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.all(8),
+                  children: _tag != null
+                      ? <Widget>[
+                          _tile(title: 'ID: ', content: _tag!.id),
+                          _tile(title: 'Standard: ', content: _tag!.standard),
+                          _tile(title: 'Type: ', content: _tag!.type),
+                          _tile(title: 'ATQA: ', content: _tag!.atqa),
+                          _tile(title: 'SAK: ', content: _tag!.sak),
+                          _tile(
+                              title: 'Historical Bytes: ',
+                              content: _tag!.historicalBytes),
+                          _tile(
+                              title: 'Protocol Info: ',
+                              content: _tag!.protocolInfo),
+                          _tile(
+                              title: 'Application Data: ',
+                              content: _tag!.applicationData),
+                          _tile(
+                              title: 'Higher Layer Response: ',
+                              content: _tag!.hiLayerResponse),
+                          _tile(
+                              title: 'Manufacturer: ',
+                              content: _tag!.manufacturer),
+                          _tile(
+                              title: 'System Code: ',
+                              content: _tag!.systemCode),
+                          _tile(title: 'DSF ID: ', content: _tag!.dsfId),
+                          _tile(
+                              title: 'NDEF Available: ',
+                              content: _tag!.ndefAvailable),
+                          _tile(title: 'NDEF Type: ', content: _tag!.ndefType),
+                          _tile(
+                              title: 'NDEF Writable: ',
+                              content: _tag!.ndefWritable),
+                          _tile(
+                              title: 'NDEF Can Make Read Only: ',
+                              content: _tag!.ndefCanMakeReadOnly),
+                          _tile(
+                              title: 'NDEF Capacity: ',
+                              content: _tag!.ndefCapacity),
+                          _tile(
+                              title: 'Mifare Info: ',
+                              content: _tag!.mifareInfo),
+                          _tile(title: 'Transceive Result: ', content: _result),
+                          _tile(title: 'Bloc Message: ', content: _mifareResult)
+                        ]
+                      : <Widget>[const Text('Please scan your tag.')])),
         ),
       ),
       const SizedBox(height: 10),
     ]);
+  }
+
+  ListTile _tile({required String title, required dynamic content}) {
+    return ListTile(
+      title: Text(title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 15,
+          )),
+      subtitle: Center(child: Text(content.toString())),
+    );
   }
 }
