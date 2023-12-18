@@ -16,12 +16,11 @@ class NfcReadView extends StatefulWidget {
   _NfcReadViewState createState() => _NfcReadViewState();
 }
 
-class _NfcReadViewState extends State<NfcReadView>
-    with AutomaticKeepAliveClientMixin {
-  bool wantKeepAlive = true;
+class _NfcReadViewState extends State<NfcReadView> {
   String _platformVersion = '';
   NFCAvailability _availability = NFCAvailability.not_supported;
   NFCTag? _tag;
+  bool _pooling = false;
   String? _result, _mifareResult;
 
   @override
@@ -30,23 +29,6 @@ class _NfcReadViewState extends State<NfcReadView>
     _platformVersion =
         '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
     initPlatformState();
-    startPolling();
-  }
-
-  void startPolling() async {
-    while (true) {
-      try {
-        NFCTag tag = await FlutterNfcKit.poll();
-        setState(() {
-          _tag = tag;
-        });
-        readNfc();
-        // Delay between polls (adjust as needed)
-        await Future.delayed(const Duration(seconds: 1));
-      } catch (e) {
-        print(e);
-      }
-    }
   }
 
   Future<void> initPlatformState() async {
@@ -68,8 +50,21 @@ class _NfcReadViewState extends State<NfcReadView>
     });
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   void readNfc() async {
     try {
+      setState(() {
+        _pooling = true;
+      });
+      NFCTag tag = await FlutterNfcKit.poll();
+      setState(() {
+        _tag = tag;
+        _pooling = false;
+      });
       await FlutterNfcKit.setIosAlertMessage("Working on it...");
       _mifareResult = null;
       if (_tag!.standard == "ISO 14443-4 (Type B)") {
@@ -102,6 +97,7 @@ class _NfcReadViewState extends State<NfcReadView>
     } catch (e) {
       setState(() {
         _result = 'error: $e';
+        _pooling = false;
       });
     }
 
@@ -120,8 +116,17 @@ class _NfcReadViewState extends State<NfcReadView>
               ? const Text('NFC: actif')
               : const Text('NFC: inactif')),
       const SizedBox(height: 10),
-      const Divider(),
       const SizedBox(height: 10),
+      ElevatedButton(
+        onPressed: !_pooling
+            ? () async {
+                readNfc();
+              }
+            : null,
+        child: Text(_pooling ? 'Polling ...' : 'Start polling'),
+      ),
+      const SizedBox(height: 10),
+      const Divider(),
       Expanded(
         flex: 1,
         child: Padding(
@@ -196,7 +201,9 @@ class _NfcReadViewState extends State<NfcReadView>
                           _tile(title: 'Bloc Message: ', content: _mifareResult)
                         ]
                       : <Widget>[
-                          const Center(child: Text('Please scan your tag.'))
+                          Center(
+                              child:
+                                  Text(_pooling ? 'Please scan your tag.' : ''))
                         ])),
         ),
       ),

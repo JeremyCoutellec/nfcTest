@@ -15,6 +15,7 @@ class NfcWriteView extends StatefulWidget {
 
 class _NfcWriteViewState extends State<NfcWriteView> {
   String? _writeResult;
+  bool _pooling = false;
   late List<TextEditingController> _textController;
 
   @override
@@ -23,24 +24,17 @@ class _NfcWriteViewState extends State<NfcWriteView> {
     _textController = [
       TextEditingController.fromValue(const TextEditingValue(text: ''))
     ];
-    startPolling();
-  }
-
-  void startPolling() async {
-    while (true) {
-      try {
-        writeNfc();
-        // Delay between polls (adjust as needed)
-        await Future.delayed(const Duration(seconds: 1));
-      } catch (e) {
-        print(e);
-      }
-    }
   }
 
   void writeNfc() async {
     try {
+      setState(() {
+        _pooling = true;
+      });
       NFCTag tag = await FlutterNfcKit.poll();
+      setState(() {
+        _pooling = false;
+      });
       if (tag.type == NFCTagType.mifare_ultralight ||
           tag.type == NFCTagType.mifare_classic ||
           tag.type == NFCTagType.iso15693) {
@@ -67,6 +61,7 @@ class _NfcWriteViewState extends State<NfcWriteView> {
     } catch (e, stacktrace) {
       setState(() {
         _writeResult = 'error: $e';
+        _pooling = false;
       });
       print(stacktrace);
     }
@@ -120,6 +115,16 @@ class _NfcWriteViewState extends State<NfcWriteView> {
         ),
       ),
       const SizedBox(height: 10),
+      const Divider(),
+      const SizedBox(height: 10),
+      ElevatedButton(
+        onPressed: !_pooling
+            ? () async {
+                writeNfc();
+              }
+            : null,
+        child: Text(_pooling ? 'Please scan your tag ...' : 'Send'),
+      ),
       Expanded(
         flex: 1,
         child: Text(_writeResult != null ? 'Result: $_writeResult' : ''),
