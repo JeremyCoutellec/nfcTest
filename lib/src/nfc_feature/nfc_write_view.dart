@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:ndef/ndef.dart' as ndef;
 
@@ -21,10 +22,8 @@ class _NfcWriteViewState extends State<NfcWriteView> {
   String? _writeResult;
   bool _pooling = false;
   late List<TextEditingController> _textController;
-  late TextEditingController _identifierController;
-  late TextEditingController _payloadController;
-  late TextEditingController _typeController;
-  late int _dropButtonValue;
+  late TextEditingController _lengthController;
+  late TextEditingController _msgController;
 
   @override
   void initState() {
@@ -33,14 +32,8 @@ class _NfcWriteViewState extends State<NfcWriteView> {
       TextEditingController.fromValue(const TextEditingValue(text: ''))
     ];
 
-    _identifierController =
-        TextEditingController.fromValue(const TextEditingValue(text: ""));
-    _payloadController =
-        TextEditingController.fromValue(const TextEditingValue(text: ""));
-    _typeController =
-        TextEditingController.fromValue(const TextEditingValue(text: ""));
-    _dropButtonValue =
-        ndef.TypeNameFormat.values.indexOf(ndef.TypeNameFormat.empty);
+    _lengthController = TextEditingController();
+    _msgController = TextEditingController();
   }
 
   void writeNDEF() async {
@@ -97,12 +90,21 @@ class _NfcWriteViewState extends State<NfcWriteView> {
         String isMailboxActive =
             await FlutterNfcKit.transceive(NfcWriteView.mbCtrlDynCode);
         if (isMailboxActive == '0001' || isMailboxActive == '0081') {
-          String response = await FlutterNfcKit.transceive(
-              NfcWriteView.writeMsg + '01' + '1122');
+          String length = _lengthController.text;
+          String msg = _msgController.text;
+          if ((msg.length / 2) != (int.parse(length) + 1)) {
+            setState(() {
+              _writeResult = 'Message length has to be equal to length given';
+            });
+          } else {
+            length = length.padLeft(2, '0');
+            String response = await FlutterNfcKit.transceive(
+                NfcWriteView.writeMsg + length + msg);
 
-          setState(() {
-            _writeResult = '$isMailboxActive: Written on Mailbox\n$response';
-          });
+            setState(() {
+              _writeResult = '$isMailboxActive: Written on Mailbox\n$response';
+            });
+          }
         } else {
           setState(() {
             _writeResult = '$isMailboxActive: Mailbox Code Unknown';
@@ -175,131 +177,69 @@ class _NfcWriteViewState extends State<NfcWriteView> {
                         ),
                       ),
                     ])),
-                const Divider(),
                 Row(children: [
                   Expanded(
                       flex: 1,
-                      child: ElevatedButton(
-                        onPressed: !_pooling
-                            ? () async {
-                                writeNDEF();
-                              }
-                            : null,
-                        child: Text(_pooling
-                            ? 'Please scan your tag ...'
-                            : 'Write NDEF'),
-                      )),
+                      child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                          child: ElevatedButton(
+                            onPressed: !_pooling
+                                ? () async {
+                                    writeNDEF();
+                                  }
+                                : null,
+                            child: Text(_pooling
+                                ? 'Please scan your tag ...'
+                                : 'Write NDEF'),
+                          ))),
                 ]),
                 const Divider(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Row(
-                    children: [
-                      Expanded(
+                Row(
+                  children: [
+                    Expanded(
                         flex: 1,
-                        child: DropdownButton(
-                          value: _dropButtonValue,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 0,
-                              child: Text('empty'),
-                            ),
-                            DropdownMenuItem(
-                              value: 1,
-                              child: Text('nfcWellKnown'),
-                            ),
-                            DropdownMenuItem(
-                              value: 2,
-                              child: Text('media'),
-                            ),
-                            DropdownMenuItem(
-                              value: 3,
-                              child: Text('absoluteURI'),
-                            ),
-                            DropdownMenuItem(
-                                value: 4, child: Text('nfcExternal')),
-                            DropdownMenuItem(
-                                value: 5, child: Text('unchanged')),
-                            DropdownMenuItem(
-                              value: 6,
-                              child: Text('unknown'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _dropButtonValue = value as int;
-                            });
-                          },
-                        ),
-                      ),
-                      Expanded(
-                          flex: 1,
-                          child: TextFormField(
-                            decoration:
-                                const InputDecoration(labelText: 'identifier'),
-                            validator: (v) {
-                              return v!.trim().length % 2 == 0
-                                  ? null
-                                  : 'length must be even';
-                            },
-                            controller: _identifierController,
-                          )),
-                      Expanded(
-                        flex: 1,
-                        child: TextFormField(
-                          decoration: const InputDecoration(labelText: 'type'),
-                          validator: (v) {
-                            return v!.trim().length % 2 == 0
-                                ? null
-                                : 'length must be even';
-                          },
-                          controller: _typeController,
-                        ),
-                      ),
-                      Expanded(
-                          flex: 1,
-                          child: TextFormField(
-                            decoration:
-                                const InputDecoration(labelText: 'payload'),
-                            validator: (v) {
-                              return v!.trim().length % 2 == 0
-                                  ? null
-                                  : 'length must be even';
-                            },
-                            controller: _payloadController,
-                          ))
-                    ],
-                  ),
+                        child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 40),
+                            child: TextFormField(
+                                controller: _lengthController,
+                                maxLength: 2,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: <TextInputFormatter>[
+                                  FilteringTextInputFormatter.digitsOnly
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: "Length",
+                                )))),
+                    Expanded(
+                        flex: 2,
+                        child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 40),
+                            child: TextFormField(
+                              decoration:
+                                  const InputDecoration(labelText: 'Msg'),
+                              keyboardType: TextInputType.number,
+                              inputFormatters: <TextInputFormatter>[
+                                FilteringTextInputFormatter.digitsOnly
+                              ],
+                              controller: _msgController,
+                            ))),
+                  ],
                 ),
-                // Center(
-                //   child: ElevatedButton(
-                //     child: const Text('OK'),
-                //     onPressed: () {
-                //       if ((_formKey.currentState as FormState).validate()) {
-                //         Navigator.pop(
-                //             context,
-                //             ndef.NDEFRecord(
-                //                 tnf: ndef.TypeNameFormat.values[_dropButtonValue],
-                //                 type: (_typeController.text).toBytes(),
-                //                 id: (_identifierController.text).toBytes(),
-                //                 payload: (_payloadController.text).toBytes()));
-                //       }
-                //     },
-                //   ),
-                // ),
                 Row(children: [
                   Expanded(
                       flex: 1,
-                      child: ElevatedButton(
-                        onPressed: !_pooling
-                            ? () async {
-                                writeMailBox();
-                              }
-                            : null,
-                        child: Text(_pooling
-                            ? 'Please scan your tag ...'
-                            : 'Write MailBox'),
-                      ))
+                      child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                          child: ElevatedButton(
+                            onPressed: !_pooling
+                                ? () async {
+                                    writeMailBox();
+                                  }
+                                : null,
+                            child: Text(_pooling
+                                ? 'Please scan your tag ...'
+                                : 'Write MailBox'),
+                          )))
                 ]),
                 Expanded(
                   flex: 1,
