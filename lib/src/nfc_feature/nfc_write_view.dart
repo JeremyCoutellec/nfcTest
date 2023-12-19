@@ -5,6 +5,10 @@ import 'package:ndef/ndef.dart' as ndef;
 class NfcWriteView extends StatefulWidget {
   static const routeName = '/nfc_write';
 
+  static const mbCtrlDynCode = '02AD020D';
+  static const mbLenDynCode = '02AB02';
+  static const writeMsg = '02AA02';
+
   const NfcWriteView({
     super.key,
   });
@@ -26,7 +30,7 @@ class _NfcWriteViewState extends State<NfcWriteView> {
     ];
   }
 
-  void writeNfc() async {
+  void writeNDEF() async {
     try {
       setState(() {
         _pooling = true;
@@ -56,6 +60,44 @@ class _NfcWriteViewState extends State<NfcWriteView> {
       } else {
         setState(() {
           _writeResult = 'error: NDEF not supported: ${tag.type}';
+        });
+      }
+    } catch (e, stacktrace) {
+      setState(() {
+        _writeResult = 'error: $e';
+        _pooling = false;
+      });
+      print(stacktrace);
+    }
+  }
+
+  void writeMailBox() async {
+    try {
+      setState(() {
+        _pooling = true;
+      });
+      NFCTag tag = await FlutterNfcKit.poll();
+      setState(() {
+        _pooling = false;
+      });
+      if (tag.type == NFCTagType.iso15693) {
+        String isMailboxActive =
+            await FlutterNfcKit.transceive(NfcWriteView.mbCtrlDynCode);
+        if (isMailboxActive == '0001' || isMailboxActive == '0081') {
+          String response = await FlutterNfcKit.transceive(
+              NfcWriteView.writeMsg + '01' + '1122');
+
+          setState(() {
+            _writeResult = '$isMailboxActive: Written on Mailbox\n$response';
+          });
+        } else {
+          setState(() {
+            _writeResult = '$isMailboxActive: Mailbox Code Unknown';
+          });
+        }
+      } else {
+        setState(() {
+          _writeResult = 'Type not supported';
         });
       }
     } catch (e, stacktrace) {
@@ -117,14 +159,29 @@ class _NfcWriteViewState extends State<NfcWriteView> {
       const SizedBox(height: 10),
       const Divider(),
       const SizedBox(height: 10),
-      ElevatedButton(
-        onPressed: !_pooling
-            ? () async {
-                writeNfc();
-              }
-            : null,
-        child: Text(_pooling ? 'Please scan your tag ...' : 'Send'),
-      ),
+      Row(children: [
+        Expanded(
+            flex: 1,
+            child: ElevatedButton(
+              onPressed: !_pooling
+                  ? () async {
+                      writeNDEF();
+                    }
+                  : null,
+              child: Text(_pooling ? 'Please scan your tag ...' : 'Write NDEF'),
+            )),
+        Expanded(
+            flex: 1,
+            child: ElevatedButton(
+              onPressed: !_pooling
+                  ? () async {
+                      writeMailBox();
+                    }
+                  : null,
+              child:
+                  Text(_pooling ? 'Please scan your tag ...' : 'Write MailBox'),
+            ))
+      ]),
       Expanded(
         flex: 1,
         child: Text(_writeResult != null ? 'Result: $_writeResult' : ''),
