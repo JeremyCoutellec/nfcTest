@@ -8,6 +8,10 @@ import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 class NfcReadView extends StatefulWidget {
   static const routeName = '/nfc_read';
 
+  static const mbCtrlDynCode = '02AD020D';
+  static const mbLenDynCode = '02AB02';
+  static const readMsg = '02AC';
+
   const NfcReadView({
     super.key,
   });
@@ -21,7 +25,8 @@ class _NfcReadViewState extends State<NfcReadView> {
   NFCAvailability _availability = NFCAvailability.not_supported;
   NFCTag? _tag;
   bool _pooling = false;
-  String? _result, _mifareResult;
+  String? _result;
+  String lengthMsg = '';
 
   @override
   void initState() {
@@ -55,7 +60,7 @@ class _NfcReadViewState extends State<NfcReadView> {
     super.dispose();
   }
 
-  void readNfc() async {
+  void readNDEF() async {
     try {
       setState(() {
         _pooling = true;
@@ -66,20 +71,7 @@ class _NfcReadViewState extends State<NfcReadView> {
         _pooling = false;
       });
       await FlutterNfcKit.setIosAlertMessage("Working on it...");
-      _mifareResult = null;
-      if (_tag!.standard == "ISO 14443-4 (Type B)") {
-        String result1 = await FlutterNfcKit.transceive("00B0950000");
-        String result2 =
-            await FlutterNfcKit.transceive("00A4040009A00000000386980701");
-        setState(() {
-          _result = '1: $result1\n2: $result2\n';
-        });
-      } else if (_tag!.type == NFCTagType.iso18092) {
-        String result1 = await FlutterNfcKit.transceive("060080080100");
-        setState(() {
-          _result = '1: $result1\n';
-        });
-      } else if (_tag!.ndefAvailable ?? false) {
+      if (_tag!.ndefAvailable ?? false) {
         var ndefRecords = await FlutterNfcKit.readNDEFRecords();
         var ndefString = '';
         for (int i = 0; i < ndefRecords.length; i++) {
@@ -88,13 +80,87 @@ class _NfcReadViewState extends State<NfcReadView> {
         setState(() {
           _result = ndefString;
         });
-      } else if (_tag!.type == NFCTagType.webusb) {
-        var r = await FlutterNfcKit.transceive("00A4040006D27600012401");
+      } else {
         setState(() {
-          _result = r.toString();
+          _result =
+              (_tag!.ndefAvailable ?? false ? 'Ndef Unavailable' : 'None');
         });
       }
     } catch (e) {
+      print(e);
+      setState(() {
+        _result = 'error: $e';
+        _pooling = false;
+      });
+    }
+  }
+
+  void readMailBox() async {
+    try {
+      setState(() {
+        _pooling = true;
+      });
+      NFCTag tag = await FlutterNfcKit.poll();
+      setState(() {
+        _tag = tag;
+        _pooling = false;
+      });
+      await FlutterNfcKit.setIosAlertMessage("Working on it...");
+      if (_tag!.type == NFCTagType.iso15693) {
+        String isMailboxActive =
+            await FlutterNfcKit.transceive(NfcReadView.mbCtrlDynCode);
+        if (isMailboxActive == '0000') {
+          setState(() {
+            _result = '$isMailboxActive : Mailbox is inactive';
+          });
+        } else if (isMailboxActive == '0001') {
+          setState(() {
+            _result = '$isMailboxActive : Mailbox active but empty';
+          });
+        } else if (isMailboxActive == '0081') {
+          setState(() {
+            _result = '$isMailboxActive: Mailbox is ready for a new sequence';
+          });
+        } else if (isMailboxActive == '0085') {
+          String mailboxMsgLength =
+              await FlutterNfcKit.transceive(NfcReadView.mbLenDynCode);
+          if (mailboxMsgLength == '0000') {
+            setState(() {
+              _result = '$isMailboxActive : Mailbox Msg length null';
+            });
+          }
+          String msg = await FlutterNfcKit.transceive(
+              NfcReadView.readMsg + mailboxMsgLength);
+
+          setState(() {
+            _result = '$isMailboxActive: RF_PUT_MSG: $msg';
+          });
+        } else if (isMailboxActive == '0043') {
+          String mailboxMsgLength =
+              await FlutterNfcKit.transceive(NfcReadView.mbLenDynCode);
+          if (mailboxMsgLength == '0000') {
+            setState(() {
+              _result = '$isMailboxActive : Mailbox Msg length null';
+            });
+          }
+          String msg = await FlutterNfcKit.transceive(
+              NfcReadView.readMsg + mailboxMsgLength);
+
+          setState(() {
+            _result = '$isMailboxActive: HOST_PUT_MSG: $msg';
+          });
+        } else {
+          setState(() {
+            _result = '$isMailboxActive: Mailbox Code Unknown';
+          });
+        }
+      } else {
+        setState(() {
+          _result = 'Type not supported';
+        });
+      }
+    } catch (e) {
+      print(e);
       setState(() {
         _result = 'error: $e';
         _pooling = false;
@@ -108,107 +174,72 @@ class _NfcReadViewState extends State<NfcReadView> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      const SizedBox(height: 10),
-      Center(child: Text('Running on: $_platformVersion')),
-      Center(
-          child: _availability.name == 'available'
-              ? const Text('NFC: actif')
-              : const Text('NFC: inactif')),
-      const SizedBox(height: 10),
-      const SizedBox(height: 10),
-      ElevatedButton(
-        onPressed: !_pooling
-            ? () async {
-                readNfc();
-              }
-            : null,
-        child: Text(_pooling ? 'Polling ...' : 'Start polling'),
-      ),
-      const SizedBox(height: 10),
-      const Divider(),
-      Expanded(
-        flex: 1,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Center(
-              child: ListView(
-                  scrollDirection: Axis.vertical,
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.all(8),
-                  children: _tag != null
-                      ? <Widget>[
-                          _tile(title: 'ID: ', content: _tag!.id),
-                          const Divider(),
-                          _tile(title: 'Standard: ', content: _tag!.standard),
-                          const Divider(),
-                          _tile(title: 'Type: ', content: _tag!.type),
-                          const Divider(),
-                          _tile(title: 'ATQA: ', content: _tag!.atqa),
-                          const Divider(),
-                          _tile(title: 'SAK: ', content: _tag!.sak),
-                          const Divider(),
-                          _tile(
-                              title: 'Historical Bytes: ',
-                              content: _tag!.historicalBytes),
-                          const Divider(),
-                          _tile(
-                              title: 'Protocol Info: ',
-                              content: _tag!.protocolInfo),
-                          const Divider(),
-                          _tile(
-                              title: 'Application Data: ',
-                              content: _tag!.applicationData),
-                          const Divider(),
-                          _tile(
-                              title: 'Higher Layer Response: ',
-                              content: _tag!.hiLayerResponse),
-                          const Divider(),
-                          _tile(
-                              title: 'Manufacturer: ',
-                              content: _tag!.manufacturer),
-                          const Divider(),
-                          _tile(
-                              title: 'System Code: ',
-                              content: _tag!.systemCode),
-                          const Divider(),
-                          _tile(title: 'DSF ID: ', content: _tag!.dsfId),
-                          const Divider(),
-                          _tile(
-                              title: 'NDEF Available: ',
-                              content: _tag!.ndefAvailable),
-                          const Divider(),
-                          _tile(title: 'NDEF Type: ', content: _tag!.ndefType),
-                          const Divider(),
-                          _tile(
-                              title: 'NDEF Writable: ',
-                              content: _tag!.ndefWritable),
-                          const Divider(),
-                          _tile(
-                              title: 'NDEF Can Make Read Only: ',
-                              content: _tag!.ndefCanMakeReadOnly),
-                          const Divider(),
-                          _tile(
-                              title: 'NDEF Capacity: ',
-                              content: _tag!.ndefCapacity),
-                          const Divider(),
-                          _tile(
-                              title: 'Mifare Info: ',
-                              content: _tag!.mifareInfo),
-                          const Divider(),
-                          _tile(title: 'Transceive Result: ', content: _result),
-                          const Divider(),
-                          _tile(title: 'Bloc Message: ', content: _mifareResult)
-                        ]
-                      : <Widget>[
-                          Center(
-                              child:
-                                  Text(_pooling ? 'Please scan your tag.' : ''))
-                        ])),
-        ),
-      ),
-      const SizedBox(height: 25),
-    ]);
+    return _availability != NFCAvailability.available
+        ? Column(children: [
+            const SizedBox(height: 10),
+            Center(child: Text('Running on: $_platformVersion')),
+            Center(child: const Text('NFC: inactif'))
+          ])
+        : Column(children: [
+            const SizedBox(height: 10),
+            Center(
+                child: Row(children: [
+              Expanded(
+                  flex: 1,
+                  child: ElevatedButton(
+                    onPressed: !_pooling
+                        ? () async {
+                            readNDEF();
+                          }
+                        : null,
+                    child: Text(_pooling ? 'Polling ...' : 'Read NDEF'),
+                  )),
+              Expanded(
+                  flex: 1,
+                  child: ElevatedButton(
+                    onPressed: !_pooling
+                        ? () async {
+                            readMailBox();
+                          }
+                        : null,
+                    child: Text(_pooling ? 'Reading ...' : 'Read MailBox'),
+                  ))
+            ])),
+            const SizedBox(height: 10),
+            const Divider(),
+            Expanded(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Center(
+                    child: ListView(
+                        scrollDirection: Axis.vertical,
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.all(8),
+                        children: _tag != null
+                            ? <Widget>[
+                                _tile(
+                                    title: 'Transceive Result: ',
+                                    content: _result),
+                                const Divider(),
+                                _tile(title: 'ID: ', content: _tag!.id),
+                                const Divider(),
+                                _tile(
+                                    title: 'Standard: ',
+                                    content: _tag!.standard),
+                                const Divider(),
+                                _tile(title: 'Type: ', content: _tag!.type),
+                              ]
+                            : <Widget>[
+                                Center(
+                                    child: Text(_pooling
+                                        ? 'Please scan your tag.'
+                                        : ''))
+                              ])),
+              ),
+            ),
+            const SizedBox(height: 25),
+          ]);
   }
 
   Card _tile({required String title, required dynamic content}) {
