@@ -8,9 +8,12 @@ import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 class NfcReadView extends StatefulWidget {
   static const routeName = '/nfc_read';
 
-  static const mbCtrlDynCode = '02AD020D';
-  static const mbLenDynCode = '02AB02';
-  static const readMsg = '02AC';
+  static const lowRate = '00';
+  static const highRate = '02';
+
+  static const mbCtrlDynCode = 'AD020D';
+  static const mbLenDynCode = 'AB02';
+  static const readMsg = 'AC02';
 
   const NfcReadView({
     super.key,
@@ -107,8 +110,8 @@ class _NfcReadViewState extends State<NfcReadView> {
       });
       await FlutterNfcKit.setIosAlertMessage("Working on it...");
       if (_tag!.type == NFCTagType.iso15693) {
-        String isMailboxActive =
-            await FlutterNfcKit.transceive(NfcReadView.mbCtrlDynCode);
+        String isMailboxActive = await FlutterNfcKit.transceive(
+            NfcReadView.highRate + NfcReadView.mbCtrlDynCode);
         if (isMailboxActive == '0000') {
           setState(() {
             _result = '$isMailboxActive : Mailbox is inactive';
@@ -122,22 +125,23 @@ class _NfcReadViewState extends State<NfcReadView> {
             _result = '$isMailboxActive: Mailbox is ready for a new sequence';
           });
         } else if (isMailboxActive == '0085') {
-          String mailboxMsgLength =
-              await FlutterNfcKit.transceive(NfcReadView.mbLenDynCode);
+          String mailboxMsgLength = await FlutterNfcKit.transceive(
+              NfcReadView.highRate + NfcReadView.mbLenDynCode);
           if (mailboxMsgLength == '0000') {
             setState(() {
               _result = '$isMailboxActive : Mailbox Msg length null';
             });
           }
           String msg = await FlutterNfcKit.transceive(
-              NfcReadView.readMsg + mailboxMsgLength);
+              NfcReadView.highRate + NfcReadView.readMsg + mailboxMsgLength);
 
           setState(() {
-            _result = '$isMailboxActive: RF_PUT_MSG: $msg';
+            _result =
+                '$isMailboxActive: RF_PUT_MSG\nLength: $mailboxMsgLength\nMsg: $msg';
           });
         } else if (isMailboxActive == '0043') {
-          String mailboxMsgLength =
-              await FlutterNfcKit.transceive(NfcReadView.mbLenDynCode);
+          String mailboxMsgLength = await FlutterNfcKit.transceive(
+              NfcReadView.highRate + NfcReadView.mbLenDynCode);
           if (mailboxMsgLength == '0000') {
             setState(() {
               _result = '$isMailboxActive : Mailbox Msg length null';
@@ -147,7 +151,8 @@ class _NfcReadViewState extends State<NfcReadView> {
               NfcReadView.readMsg + mailboxMsgLength);
 
           setState(() {
-            _result = '$isMailboxActive: HOST_PUT_MSG: $msg';
+            _result =
+                '$isMailboxActive: HOST_PUT_MSG\nLength: $mailboxMsgLength\nMsg: $msg';
           });
         } else {
           setState(() {

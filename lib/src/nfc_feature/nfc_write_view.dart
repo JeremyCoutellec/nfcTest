@@ -6,9 +6,12 @@ import 'package:ndef/ndef.dart' as ndef;
 class NfcWriteView extends StatefulWidget {
   static const routeName = '/nfc_write';
 
-  static const mbCtrlDynCode = '02AD020D';
-  static const mbLenDynCode = '02AB02';
-  static const writeMsg = '02AA02';
+  static const lowRate = '00';
+  static const highRate = '02';
+
+  static const mbCtrlDynCode = 'AD020D';
+  static const mbLenDynCode = 'AB02';
+  static const writeMsg = 'AA02';
 
   const NfcWriteView({
     super.key,
@@ -87,9 +90,11 @@ class _NfcWriteViewState extends State<NfcWriteView> {
         _pooling = false;
       });
       if (tag.type == NFCTagType.iso15693) {
-        String isMailboxActive =
-            await FlutterNfcKit.transceive(NfcWriteView.mbCtrlDynCode);
-        if (isMailboxActive == '0001' || isMailboxActive == '0081') {
+        String isMailboxActive = await FlutterNfcKit.transceive(
+            NfcWriteView.highRate + NfcWriteView.mbCtrlDynCode);
+        if (isMailboxActive == '0001' ||
+            isMailboxActive == '0043' ||
+            isMailboxActive == '0081') {
           String length = _lengthController.text;
           String msg = _msgController.text;
           if ((msg.length / 2) != (int.parse(length) + 1)) {
@@ -99,7 +104,7 @@ class _NfcWriteViewState extends State<NfcWriteView> {
           } else {
             length = length.padLeft(2, '0');
             String response = await FlutterNfcKit.transceive(
-                NfcWriteView.writeMsg + length + msg);
+                NfcWriteView.highRate + NfcWriteView.writeMsg + length + msg);
 
             setState(() {
               _writeResult = '$isMailboxActive: Written on Mailbox\n$response';
