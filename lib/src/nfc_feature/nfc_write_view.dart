@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:ndef/ndef.dart' as ndef;
 
@@ -25,7 +24,6 @@ class _NfcWriteViewState extends State<NfcWriteView> {
   String? _writeResult;
   bool _pooling = false;
   late List<TextEditingController> _textController;
-  late TextEditingController _lengthController;
   late TextEditingController _msgController;
 
   @override
@@ -34,8 +32,6 @@ class _NfcWriteViewState extends State<NfcWriteView> {
     _textController = [
       TextEditingController.fromValue(const TextEditingValue(text: ''))
     ];
-
-    _lengthController = TextEditingController();
     _msgController = TextEditingController();
   }
 
@@ -85,6 +81,11 @@ class _NfcWriteViewState extends State<NfcWriteView> {
       setState(() {
         _pooling = true;
       });
+      String msg = _msgController.text;
+      int length = (msg.length ~/ 2);
+      String hexLength = length.toRadixString(16).toUpperCase().padLeft(2, '0');
+      print(
+          '${NfcWriteView.highRate + NfcWriteView.writeMsg + hexLength + msg}');
       NFCTag tag = await FlutterNfcKit.poll();
       setState(() {
         _pooling = false;
@@ -95,21 +96,18 @@ class _NfcWriteViewState extends State<NfcWriteView> {
         if (isMailboxActive == '0001' ||
             isMailboxActive == '0043' ||
             isMailboxActive == '0081') {
-          String length = _lengthController.text;
           String msg = _msgController.text;
-          if ((msg.length / 2) != (int.parse(length) + 1)) {
-            setState(() {
-              _writeResult = 'Message length has to be equal to length given';
-            });
-          } else {
-            length = length.padLeft(2, '0');
-            String response = await FlutterNfcKit.transceive(
-                NfcWriteView.highRate + NfcWriteView.writeMsg + length + msg);
+          int length = (msg.length ~/ 2) - 1;
+          String hexLength =
+              length.toRadixString(16).toUpperCase().padLeft(2, '0');
 
-            setState(() {
-              _writeResult = '$isMailboxActive: Written on Mailbox\n$response';
-            });
-          }
+          String response = await FlutterNfcKit.transceive(
+              NfcWriteView.highRate + NfcWriteView.writeMsg + hexLength + msg);
+
+          setState(() {
+            _writeResult =
+                '$isMailboxActive: Written on Mailbox\n${NfcWriteView.highRate + NfcWriteView.writeMsg + hexLength + msg}\n$response';
+          });
         } else {
           setState(() {
             _writeResult = '$isMailboxActive: Mailbox Code Unknown';
@@ -206,26 +204,8 @@ class _NfcWriteViewState extends State<NfcWriteView> {
                         child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 40),
                             child: TextFormField(
-                                controller: _lengthController,
-                                maxLength: 2,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: <TextInputFormatter>[
-                                  FilteringTextInputFormatter.digitsOnly
-                                ],
-                                decoration: const InputDecoration(
-                                  labelText: "Length",
-                                )))),
-                    Expanded(
-                        flex: 2,
-                        child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 40),
-                            child: TextFormField(
                               decoration:
                                   const InputDecoration(labelText: 'Msg'),
-                              keyboardType: TextInputType.number,
-                              inputFormatters: <TextInputFormatter>[
-                                FilteringTextInputFormatter.digitsOnly
-                              ],
                               controller: _msgController,
                             ))),
                   ],
